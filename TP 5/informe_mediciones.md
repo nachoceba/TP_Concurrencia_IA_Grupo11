@@ -189,3 +189,91 @@ Motivo: el usuario `id = 450` tiene **solo 8 pedidos**. El planner considera má
 DROP INDEX idx_producto_categoria_precio;
 DROP INDEX idx_pedido_usuario_fecha;
 ```
+
+---
+
+## 6. Vistas de negocio (`views.sql`)
+
+Las tres vistas se ejecutaron sobre el clon con `psql -U postgres -d TP2_Concurrencia_IA_Grupo11_clon -f views.sql` (envueltas en `BEGIN/COMMIT`, protocolo Paso 2).
+
+| Vista | Propósito | Notas |
+| :---- | :-------- | :---- |
+| `v_pedidos_resumen` | Resumen de pedidos vigentes con cliente (HU-PED-01) | Referenciada por `queries.sql`; antes no existía y la consulta fallaba |
+| `v_catalogo_productos` | Catálogo vigente para el frontend | Solo productos vigentes y disponibles, con categoría |
+| `v_usuarios_segura` | **Vista de seguridad** sobre `usuario` | Omite `contrasena`; solo usuarios vigentes; permite `GRANT SELECT` sin acceso a la tabla base |
+
+### 6.1 Criterio de seguridad de `v_usuarios_segura`
+
+Expone únicamente: `id_usuario, nombre, apellido, mail, celular, rol` — **nunca `contrasena`**. Al no otorgarse privilegios sobre la tabla `usuario`, un rol solo puede leer el resultado a través de la vista:
+
+```sql
+GRANT SELECT ON v_usuarios_segura TO aplicacion_lectura;
+```
+
+Verificación: `SELECT count(*) FROM information_schema.columns WHERE table_name = 'v_usuarios_segura' AND column_name = 'contrasena';` → **0** filas (la columna no existe en la vista).
+
+---
+
+## 7. Verificación de equivalencia de las vistas contra la consulta manual
+
+Método simétrico con `EXCEPT` en ambas direcciones (`vista EXCEPT manual` y `manual EXCEPT vista`): un resultado de 0 filas en las dos direcciones garantiza que vista y consulta manual producen **exactamente el mismo conjunto** (mismas filas, misma cantidad).
+
+### 7.1 `v_pedidos_resumen` vs. consulta manual
+
+```sql
+-- (manual)
+SELECT p.id_pedido, u.nombre || ' ' || u.apellido, p.fecha, p.estado,
+       p.forma_pago, p.total
+FROM   pedido p
+JOIN   usuario u ON u.id_usuario = p.usuario_id
+WHERE  p.eliminado = FALSE AND u.eliminado = FALSE;
+```
+
+| Dirección | Filas de diferencia |
+| :-------- | ------------------: |
+| `vista EXCEPT manual` | 0 |
+| `manual EXCEPT vista` | 0 |
+
+**Equivalencia comprobada.**
+
+### 7.2 `v_catalogo_productos` vs. consulta manual
+
+```sql
+-- (manual)
+SELECT pr.id_producto, pr.nombre, pr.precio, pr.stock, pr.disponible, c.nombre
+FROM   producto pr
+JOIN   categoria c ON c.id_categoria = pr.categoria_id
+WHERE  pr.eliminado = FALSE AND c.eliminado = FALSE;
+```
+
+| Dirección | Filas de diferencia |
+| :-------- | ------------------: |
+| `vista EXCEPT manual` | 0 |
+| `manual EXCEPT vista` | 0 |
+
+**Equivalencia comprobada.**
+
+### 7.3 `v_usuarios_segura` vs. consulta manual
+
+```sql
+-- (manual)
+SELECT id_usuario, nombre, apellido, mail, celular, rol
+FROM   usuario
+WHERE  eliminado = FALSE;
+```
+
+| Dirección | Filas de diferencia |
+| :-------- | ------------------: |
+| `vista EXCEPT manual` | 0 |
+| `manual EXCEPT vista` | 0 |
+
+Además se validó el criterio de vigencia: `v_usuarios_segura` = **20.000** filas = total de `usuario` con `eliminado = FALSE` (20.000). **Equivalencia comprobada.**
+
+---
+
+## 8. Resumen de la parte A
+
+1. **Consulta 1 (login por mail):** sin índice nuevo — el `UNIQUE (usuario.mail)` ya era óptimo (punto 4).
+2. **Consulta 2 (catálogo):** `idx_producto_categoria_precio` → 4.592 → 0.289 ms (−93,7%).
+3. **Consulta 3 (pedidos por usuario):** `idx_pedido_usuario_fecha` → plan usa el índice parcial; el `Sort` persiste solo por el bajo volumen de filas del usuario de prueba.
+4. **Vistas (`views.sql`):** `v_pedidos_resumen`, `v_catalogo_productos` y `v_usuarios_segura` (seguridad, sin `contrasena`) — equivalencia contra la consulta manual verificada con `EXCEPT` (0 filas en ambos sentidos).
