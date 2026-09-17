@@ -277,3 +277,118 @@ Además se validó el criterio de vigencia: `v_usuarios_segura` = **20.000** fil
 2. **Consulta 2 (catálogo):** `idx_producto_categoria_precio` → 4.592 → 0.289 ms (−93,7%).
 3. **Consulta 3 (pedidos por usuario):** `idx_pedido_usuario_fecha` → plan usa el índice parcial; el `Sort` persiste solo por el bajo volumen de filas del usuario de prueba.
 4. **Vistas (`views.sql`):** `v_pedidos_resumen`, `v_catalogo_productos` y `v_usuarios_segura` (seguridad, sin `contrasena`) — equivalencia contra la consulta manual verificada con `EXCEPT` (0 filas en ambos sentidos).
+
+---
+
+## 9. Vista materializada del ranking Top-3 por categoría
+
+### 9.1 Selección de la consulta (la más costosa)
+
+Se compararon las consultas del repositorio que usan `SUM()`/`COUNT()`/`AVG()` con `GROUP BY` y **sin índice dedicado en `indices.sql`**:
+
+| # | Consulta (origen) | Tablas | Costo estimado (`EXPLAIN`) |
+| :- | :---------------- | :----- | -------------------------: |
+| C1 | TP3 `Consulta1.sql` (HAVING + AVG) | usuario, pedido | ~12.231 |
+| C2 | TP3 `Consulta2.sql` (CTE) | usuario, pedido | ~7.261 |
+| C3 | TP4 Parte 3, Consulta 1 (`ROW_NUMBER`) | detalle_pedido, producto, categoria | ~83.584 |
+| **C4** | **TP4 Parte 3, Consulta 2 (correlacionada)** | detalle_pedido, producto, categoria | **~1.600.277.688** |
+| C5 | `queries.sql` B (facturación por categoría/mes) | detalle_pedido, pedido, producto, categoria | ~87.328 |
+
+**Consulta elegida: C4** (TP4 Parte 3, Consulta 2). Es la más costosa (~19.000× la siguiente) por sus dos `COUNT(*)` correlacionados que re-escanean el CTE completo por fila → comportamiento **O(n²)**. Ninguna de las 12 propuestas de `indices.sql` la cubre.
+
+### 9.2 Definición materializada
+
+Se materializa con la **versión equivalente con `ROW_NUMBER()` (C3)** — semánticamente idéntica a C4 (equivalencia ya probada con `EXCEPT` en TP4) pero de build rápido, evitando pagar el O(n²) en cada refresco.
+
+```sql
+CREATE MATERIALIZED VIEW mv_top_productos_categoria AS
+WITH agg AS ( ... SUM(dp.subtotal) ... GROUP BY c.nombre, pr.id_producto, pr.nombre ),
+     ranked AS ( ... ROW_NUMBER() OVER (PARTITION BY categoria ORDER BY facturado DESC, id_producto ASC) ... )
+SELECT categoria, id_producto, producto, facturado, puesto
+FROM   ranked
+WHERE  puesto <= 3
+ORDER  BY categoria ASC, puesto ASC, id_producto ASC
+WITH DATA;
+
+CREATE UNIQUE INDEX uq_mv_top_productos_puesto
+    ON mv_top_productos_categoria (categoria, id_producto);
+```
+
+- **`WITH DATA`:** llenado inmediato (exigido).
+- **Índice único `(categoria, id_producto)`:** requisito para `REFRESH MATERIALIZED VIEW CONCURRENTLY`; cada `id_producto` aparece una sola vez (1 producto → 1 categoría), por lo que la clave es única por fila.
+
+### 9.3 Resultados medidos (clon)
+
+| Operación | Resultado |
+| :-------- | :-------- |
+| Build `CREATE MATERIALIZED VIEW ... WITH DATA` | **241,962 ms** |
+| `CREATE UNIQUE INDEX` | 2,519 ms |
+| `REFRESH MATERIALIZED VIEW CONCURRENTLY` | **248,513 ms** (OK, el índice único lo habilita) |
+
+Saneamiento: `max(puesto) = 1`, ninguna categoría con más de 3 productos, y **equivalencia simétrica `EXCEPT`** del MV contra la consulta inline → **0 filas en ambas direcciones**.
+
+Nota sobre el volumen observado: el resultado del MV tiene **1 fila** (categoría `Empanadas`, producto `#4538`, facturado 2.260.420.000,00) porque en los datos cargados **solo un producto (de 50.000) tiene filas en `detalle_pedido`**. La lógica del MV queda validada igualmente por la equivalencia `EXCEPT`.
+
+### 9.4 Comparación de tiempo: vista materializada vs. consulta original
+
+Medición con `EXPLAIN (ANALYZE, BUFFERS, TIMING)` sobre el clon:
+
+| Consulta | Plan | Execution Time | Buffers |
+| :------- | :--- | -------------: | ------: |
+| **Vista materializada** (`SELECT * FROM mv_top_productos_categoria`) | `Seq Scan` (1 fila) | **0.087 ms** | 1 |
+| **Original C4** (correlacionada, la elegida) | `Sort` + CTE + 2 subplan correlacionados | 242.733 ms | 3.379 + temp 2.597 |
+| **C3 equivalente** (`ROW_NUMBER`, definición del MV) | `Incremental Sort` + `WindowAgg` | 237.930 ms | 3.376 + temp 2.597 |
+
+**Speedup del MV ≈ 2.790×** respecto de la consulta original (`242,733 / 0,087`). El MV además elimina el derrame a disco (`temp read=2597 written=2605`) y los ~3.379 buffers de la consulta original.
+
+Observación: C4 midió 242 ms —no el tiempo catastrófico que sugería su costo estimado (1,6×10⁹)— porque el planner **sobreestima el CTE `agg`** (estima ~200.000 filas cuando en los datos reales produce 1). Aun con la estimación pesimista corregida, el MV evita por completo ese trabajo en cada consulta.
+
+### 9.5 Rollback
+
+```sql
+DROP MATERIALIZED VIEW mv_top_productos_categoria;
+```
+
+Respaldo previo: `backup_pre_mv_20260917_203453.dump`.
+
+---
+
+### 9.6 Frecuencia de `REFRESH` y consistencia temporal
+
+#### Uso esperado del reporte
+
+El MV `mv_top_productos_categoria` alimenta el **Top-3 de productos por facturación acumulada por categoría**: un **KPI de gestión**, no un panel operativo en tiempo real. La métrica es *acumulada*, por lo que evoluciona lentamente y no exige reflejar cada venta al instante.
+
+#### Frecuencia recomendada: **1 vez por día, a las 03:00**
+
+- Se ejecuta fuera del horario pico de escritura (menor contención con las operaciones de venta).
+- Es un reporte de gestión: la ventana de datos "hasta el cierre del día anterior" es funcionalmente suficiente.
+- El refresh medido es barato (**~248 ms**) y, al usar `CONCURRENTLY`, **no bloquea las lecturas** del reporte mientras corre.
+
+```sql
+-- Programacion diaria con pg_cron (03:00)
+SELECT cron.schedule(
+    'refresh-top3',
+    '0 3 * * *',
+    'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_top_productos_categoria;'
+);
+```
+
+Alternativas sin `pg_cron`: Task Scheduler de Windows o un job de la aplicación que dispare la misma sentencia.
+
+#### Por qué `REFRESH ... CONCURRENTLY`
+
+- No toma `AccessExclusiveLock`: los usuarios pueden **seguir consultando el MV** durante el refresco.
+- Requiere el **índice único** `uq_mv_top_productos_puesto` (ya creado) — sin él, PostgreSQL rechaza el refresh concurrente.
+- **No puede ejecutarse dentro de una transacción** ni en funciones con control transaccional; debe lanzarse como sentencia suelta (compatible con `pg_cron`).
+- Es más costoso que un `REFRESH` normal, pero con 248 ms medidos la diferencia es despreciable.
+
+#### Implicaciones para los usuarios cuando el dato no está actualizado
+
+| Aspecto | Implicación |
+| :------ | :---------- |
+| **Ventana de inconsistencia** | El reporte refleja el estado del **último refresh (03:00)**. Un pedido pasado a `TERMINADO` después de esa hora **no aparece** hasta la noche siguiente (hasta ~24 h). |
+| **Atomicidad** | Cada refresh es un **snapshot atómico**: nunca se ven datos a medio actualizar ni lecturas parciales. |
+| **Toma de decisiones** | El ranking puede estar "un día atrasado". Para decisiones de gestión es aceptable (la facturación acumulada casi no cambia de posición); **no** es apto para decisiones operativas en vivo. |
+| **Datos que desaparecen** | Si un dato sale del Top-3 por ventas más recientes, el MV lo sigue mostrando hasta el próximo refresh. |
+| **Mitigación** | Exponer la antigüedad del dato ("Datos al &lt;fecha&gt;"), idealmente con una columna `refreshed_at` (`now() AS refreshed_at` en la definición del MV). Si se necesita el valor exacto del momento, consultar la base en vivo. |
