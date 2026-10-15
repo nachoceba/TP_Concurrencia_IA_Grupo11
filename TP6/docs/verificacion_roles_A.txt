@@ -1,0 +1,171 @@
+TP6 Parte A — Verificacion de roles.sql contra BD efimera tp6_u5_work
+Fecha (UTC): 2026-10-15
+Repo: C:\Users\Franco Gagliardi\Documents\Facultad\Semestre 3\BaseDeDatos2\TP2_Concurrencia_IA_Grupo11
+Script bajo prueba: TP6/sql/roles.sql (NO modificado)
+Espec: TP6/docs/kiro_roles_spec/requirements.md + design.md (solo lectura)
+Regla anti-bloqueo: timeout <=20s por comando, psql -w, $env:PGCONNECT_TIMEOUT=5, -v ON_ERROR_STOP=1 -X -q. Max 6 comandos. Sin reintentos en loop.
+NO se dropea tp6_u5_work (no llego a crearse). NO commits.
+
+===============================================================================
+PASO 1 — Solo lectura entorno (OK)
+Comando (15s): pg_isready; psql --version
+Salida real:
+  :5432 - aceptando conexiones
+  psql (PostgreSQL) 17.10
+Version esperada 17.10: CONFIRMADA (coincide).
+===============================================================================
+PASO 2 — Conectividad (FALLA, detencion segun protocolo)
+Comando (20s): $env:PGCONNECT_TIMEOUT=5; psql -w -U postgres -d postgres -X -q -v ON_ERROR_STOP=1 -c "SELECT 1 AS ok;"
+Salida real:
+  psql: error: falla la conexion al servidor en "localhost" (::1), puerto 5432: fe_sendauth: no password supplied
+Conclusion: requiere password, no se puede verificar sin credencial.
+Accion tomada: DETENIDO. No se probaron passwords, no se reintento en loop.
+Comandos bash usados: 2 de 6. Restantes no ejecutados.
+===============================================================================
+PASO 3 — Crear BD tp6_u5_work + carga ordenada (NO EJECUTADO — bloqueado por Paso 2)
+Plan previsto (no ejecutado):
+  psql -w -U postgres -d postgres -c "SELECT 1 FROM pg_database WHERE datname='tp6_u5_work'"
+  createdb -w -U postgres tp6_u5_work  (solo si no existe)
+  psql -w -U postgres -d tp6_u5_work -v ON_ERROR_STOP=1 -X -q -f parcial_BD/01_schema.sql
+  psql -w -U postgres -d tp6_u5_work -v ON_ERROR_STOP=1 -X -q -f parcial_BD/04_objects.sql
+  psql -w -U postgres -d tp6_u5_work -v ON_ERROR_STOP=1 -X -q -f parcial_BD/02_data_demo.sql
+  (NO 03_data_masivo, segun tarea)
+Estado: NO EJECUTADO.
+===============================================================================
+PASO 4 — Aplica roles.sql (NO EJECUTADO — bloqueado por Paso 2)
+Plan previsto (no ejecutado):
+  psql -w -U postgres -d tp6_u5_work -v ON_ERROR_STOP=1 -X -q -f TP6/sql/roles.sql
+Estado: NO EJECUTADO. Salida de aplicacion: N/A.
+===============================================================================
+PASO 5 — Verificacion PRE/POST (NO EJECUTADO — bloqueado por Paso 2)
+Queries previstas (cada una <=20s, no ejecutadas):
+  Q1: SELECT rolname, rolcanlogin, rolconnlimit FROM pg_roles WHERE rolname LIKE 'rol_%' OR rolname IN ('app_web','admin_datos') ORDER BY 1;
+  Q2: SELECT grantee, table_schema, table_name, privilege_type FROM information_schema.role_table_grants WHERE grantee LIKE 'rol_%' OR grantee IN ('app_web','admin_datos') ORDER BY 1,2,3,4;
+  Q3: SELECT has_table_privilege('rol_soporte','usuario','SELECT'), has_table_privilege('app_web','usuario','SELECT');
+PRE: N/A (sin BD). POST: N/A (sin BD). Errores: ver Paso 2.
+Nota sobre Q3: has_table_privilege devuelve TRUE con grant por columnas, por lo que
+no distingue "ve 6 columnas menos contrasena" de "ve tabla completa". La verificacion
+correcta exige has_column_privilege por columna (ver Fixes #5).
+===============================================================================
+CONTEO DE GRANTS POR ROL — estatico desde roles.sql (sin salida live de BD)
+Fuente: lectura de TP6/sql/roles.sql Bloques 0-11. No hay conteo live porque Paso 2 fallo.
+Entre corchetes: objeto -> privilegio.
+
+rol_app_lectura (NOLOGIN):
+  CONNECT ON DATABASE food_store_parcial: 1
+  USAGE ON SCHEMA public: 1
+  USAGE ON TYPE (rol_usuario, estado_pedido, forma_pago): 3
+  SELECT sobre vistas/MV (Bloque 4): 7  [v_categorias_vigentes, v_productos_vigentes, v_pedidos_resumen, v_pedido_detalle, v_catalogo_productos, v_usuarios_segura, mv_top_productos_categoria]
+  DEFAULT PRIVILEGES futuros (SELECT ON TABLES FOR ROLE postgres): 1 (linea 93, compartida; linea 94 duplicada — ver Fix #2)
+  Herencia: es otorgado a rol_app_escritura (GRANT rol_app_lectura TO rol_app_escritura)
+
+rol_app_escritura (NOLOGIN):
+  Hereda todo lo de rol_app_lectura (via GRANT del Bloque 2)
+  Directos propios:
+    CONNECT: 1 | USAGE SCHEMA: 1 | USAGE TYPE x3: 3
+    EXECUTE ON PROCEDURE sp_crear_pedido(BIGINT, forma_pago, JSONB): 1
+    DEFAULT PRIVILEGES futuros (EXECUTE ON FUNCTIONS): 1 (linea 95)
+    Otorgado a login app_web: 1 membresia
+  INSERT/UPDATE/DELETE directos en pedido/detalle_pedido: 0 (correcto, minimo privilegio)
+
+rol_soporte (NOLOGIN):
+  CONNECT: 1 | USAGE SCHEMA: 1 | USAGE TYPE x3: 3
+  SELECT por columnas ON usuario: 1 grant cubriendo 6 columnas (id_usuario, nombre, apellido, mail, celular, rol); contrasena excluida a proposito
+  EXECUTE ON FUNCTION calcular_total_pedido(BIGINT): 1
+  SELECT sobre vistas (Bloque 7): 3 [v_pedidos_resumen, v_usuarios_segura, v_pedido_detalle]
+  DEFAULT PRIVILEGES futuros (SELECT): 1 (linea 93)
+
+rol_reportes (NOLOGIN):
+  CONNECT: 1 | USAGE SCHEMA: 1 | USAGE TYPE: 0 (ausente — ver Fix #3)
+  SELECT (Bloque 8): 2 [mv_top_productos_categoria, v_pedidos_resumen]
+  EXECUTE: 0 (correcto)
+  DEFAULT PRIVILEGES futuros (SELECT): 1 (linea 93)
+
+rol_auditor (NOLOGIN):
+  CONNECT: 1 | USAGE SCHEMA: 1 | USAGE TYPE: 0 (ausente — ver Fix #3)
+  SELECT (Bloque 9): 3 [v_pedidos_resumen, v_usuarios_segura, mv_top_productos_categoria]
+  EXECUTE ON FUNCTION calcular_total_pedido(BIGINT): 1
+  DEFAULT PRIVILEGES futuros (SELECT): 1 (linea 93)
+  Es otorgado a login admin_datos: 1 membresia
+
+app_web (LOGIN, CONNECTION LIMIT 20, search_path=public,pg_temp):
+  Miembro de rol_app_escritura (hereda escritura + lectura). Sin grants directos de tabla.
+
+admin_datos (LOGIN, CONNECTION LIMIT 5, search_path=public,pg_temp):
+  Miembro de rol_auditor. Sin grants directos de tabla.
+
+PUBLIC (hardening Bloque 0 + Bloque 5):
+  REVOKE ALL ON SCHEMA public FROM PUBLIC: 1
+  REVOKE CREATE ON SCHEMA public FROM PUBLIC: 1
+  REVOKE ALL ON DATABASE food_store_parcial FROM PUBLIC: 1 (nombre hardcodeado — ver Fix #1)
+  REVOKE ALL ON usuario FROM PUBLIC: 1
+
+Totales de GRANT directos en el script (conteo estatico, cada objeto cuenta 1):
+  rol_app_lectura: 7 SELECT vista/MV + 1 CONNECT + 1 USAGE schema + 3 USAGE type = 12 (+ default futuro)
+  rol_app_escritura (propios, sin herencia): 1 EXECUTE + 1 CONNECT + 1 USAGE schema + 3 USAGE type = 6 (+ hereda 12 de lectura via membresia)
+  rol_soporte: 3 SELECT vista + 1 SELECT-columnas + 1 EXECUTE + 1 CONNECT + 1 USAGE schema + 3 USAGE type = 10
+  rol_reportes: 2 SELECT + 1 CONNECT + 1 USAGE schema = 4
+  rol_auditor: 3 SELECT + 1 EXECUTE + 1 CONNECT + 1 USAGE schema = 6
+Conteo live desde BD: N/A (Paso 2 fallo, sin pg_roles / role_table_grants reales).
+===============================================================================
+CONCLUSION — minimo privilegio: NO CONFIRMADO EN BD (sin credencial), APTO CONDICIONAL en estatico
+Estatico vs requirements.md:
+  REQ-01..REQ-06, REQ-SEC-01 (sin PASSWORD en claro), REQ-SEC-02 (REVOKE PUBLIC),
+  REQ-SEC-04 (NOLOGIN x5), REQ-SEC-05 (sin INSERT directo), REQ-SEC-06 (search_path):
+  cubiertos en el texto del script.
+  REQ-SEC-03 (DEFAULT PRIVILEGES): presente pero con linea duplicada (Fix #2).
+La verificacion live queda PENDIENTE hasta disponer de credencial (PGPASSWORD o pg_hba trust).
+Sin aplicar cambios (solo lista concreta de fixes):
+-------------------------------------------------------------------------------
+Fix #1 (bloqueante para tp6_u5_work): nombre de BD hardcodeado.
+  Lineas 22 y 47: food_store_parcial -> tp6_u5_work (o parametrizar con :DB).
+  Sin esto, el GRANT CONNECT cae sobre otra BD y la app no conecta a tp6_u5_work;
+  el REVOKE de la linea 22 tampoco endurece la BD efimera.
+Fix #2 (limpieza): ALTER DEFAULT PRIVILEGES duplicado.
+  Linea 94 repite SELECT a rol_app_lectura ya cubierto en linea 93.
+  Eliminar linea 94 (la 93 ya otorga SELECT futuro a lectura/soporte/reportes/auditor;
+  la 95 otorga EXECUTE futuro a escritura). Re-ejecutar no rompe, pero confunde auditoria.
+Fix #3 (permiso faltante probable): USAGE ON TYPE para reportes y auditor.
+  Linea 51 solo da USAGE en los 3 ENUM a lectura/escritura/soporte.
+  reportes y auditor leen v_pedidos_resumen (columnas estado_pedido, forma_pago).
+  Agregar: GRANT USAGE ON TYPE rol_usuario, estado_pedido, forma_pago TO rol_reportes, rol_auditor;
+  Verificar live con: SELECT has_type_privilege('rol_reportes','estado_pedido','USAGE'); idem auditor.
+Fix #4 (endurecer funciones): falta REVOKE FROM PUBLIC en rutinas.
+  Agregar antes de los EXECUTE:
+    REVOKE ALL ON PROCEDURE sp_crear_pedido(BIGINT, forma_pago, JSONB) FROM PUBLIC;
+    REVOKE ALL ON FUNCTION calcular_total_pedido(BIGINT) FROM PUBLIC;
+  Garantiza que solo escritura (SP) y soporte/auditor (funcion) ejecuten.
+Fix #5 (query de verificacion Q3 insuficiente para columna-level):
+  Reemplazar has_table_privilege por checks por columna, p.ej.:
+    SELECT has_column_privilege('rol_soporte','usuario','id_usuario','SELECT'),
+           has_column_privilege('rol_soporte','usuario','contrasena','SELECT'),
+           has_column_privilege('app_web','usuario','contrasena','SELECT');
+  Esperado: true, false, false. Asi se prueba "sin contrasena".
+Fix #6 (alcance DEFAULT PRIVILEGES): solo FOR ROLE postgres.
+  Si 01/04/02 se cargan con otro owner/usuario, los defaults no aplican.
+  Alinear carga con -U postgres (previsto) o agregar ALTER DEFAULT PRIVILEGES
+  FOR ROLE <owner_real>. Verificar live con SELECT * FROM information_schema... o
+  creando tabla futura de prueba y comprobando grants.
+Retrabajo al obtener credencial (para Partes B-D, sin dropear tp6_u5_work):
+  1. $env:PGCONNECT_TIMEOUT=5; psql -w ... (con PGPASSWORD o trust) SELECT 1;
+  2. crear tp6_u5_work si no existe; cargar 01_schema, 04_objects, 02_data_demo con ON_ERROR_STOP;
+  3. aplicar TP6/sql/roles.sql corregido (Fixes #1-#4);
+  4. correr Q1/Q2/Q3-corregido y anexar salida POST a este archivo.
+===============================================================================
+RESUMEN PARA REPORTE
+Pasos OK: 1 (entorno: pg_isready aceptando, psql 17.10).
+Pasos fallidos: 2 (conectividad: fe_sendauth no password supplied -> detenido por regla).
+No ejecutados: 3, 4, 5 (bloqueados, sin BD tocada, tp6_u5_work intacto para B-D).
+Grants por rol (live): N/A. Grants por rol (estatico): ver seccion CONTEO.
+Minimo privilegio: NO confirmado en BD; estatico apto condicional con 6 fixes concretos pendientes (NO aplicados).
+===============================================================================
+APENDICE — Fixes estaticos aplicados a TP6/sql/roles.sql (sin BD)
+Fecha (UTC): 2026-10-15
+1. DB parametrizada: food_store_parcial -> tp6_u5_work en REVOKE DATABASE (Bloque 0) y GRANT CONNECT (Bloque 3), con comentario `-- Ajustar al nombre real si difiere`.
+2. Duplicado eliminado: quitada linea 94 (ALTER DEFAULT PRIVILEGES SELECT repetido a rol_app_lectura); queda una sola para SELECT ON TABLES + una para EXECUTE ON FUNCTIONS.
+3. USAGE ON TYPE: agregado `GRANT USAGE ON TYPE rol_usuario, estado_pedido, forma_pago TO rol_reportes, rol_auditor;` (leen enums via vistas).
+4. Endurecer rutinas: agregados `REVOKE ALL ON PROCEDURE sp_crear_pedido(BIGINT, forma_pago, JSONB) FROM PUBLIC;` y `REVOKE ALL ON FUNCTION calcular_total_pedido(BIGINT) FROM PUBLIC;` antes de cada EXECUTE.
+5. Verificacion por columna: creado Bloque 12 comentado al pie con has_column_privilege por columna en usuario (id_usuario=true, contrasena=false para soporte/reportes/app_web); no usar has_table_privilege.
+6. Owner defaults: `FOR ROLE postgres` -> `FOR ROLE CURRENT_USER` en los ALTER DEFAULT PRIVILEGES, con comentario de alinear owner de carga.
+Nota honesta: verificacion live sigue BLOQUEADA por `fe_sendauth: no password supplied` (pg_hba scram-sha-256, sin PGPASSWORD ni pgpass); pendiente credencial del usuario. Cero comandos BD en esta pasada (solo Read/Edit).
+Conteo estatico actualizado: rol_reportes 4 -> 7 (+3 USAGE TYPE); rol_auditor 6 -> 9 (+3 USAGE TYPE); defaults SELECT futuro: 1 compartido (duplicado removido); +2 REVOKE en rutinas (Bloque 6).

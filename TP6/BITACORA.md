@@ -1,0 +1,9 @@
+# BITÁCORA — TP6 (registro de uso de IA)
+
+## Parte A — Roles y privilegios mínimos
+
+| Prompt enviado | Respuesta relevante resumida | Validación/corrección humana |
+|---|---|---|
+| Generar TP6/sql/roles.sql con 5 grupos NOLOGIN, herencia lectura→escritura, SELECT en 7 vistas/MV canónicas, EXECUTE sp_crear_pedido solo a escritura, columna-level en usuario sin contrasena, DEFAULT PRIVILEGES y 2 logins con límites | IA devolvió roles.sql en 11 bloques numerados (hardening, grupos idempotentes, herencia, CONNECT/USAGE/TYPE, SELECT vistas, columna-level, EXECUTE mínimo, soporte/reportes/auditor, DEFAULT PRIVILEGES, logins con search_path) + requirements.md EARS y design.md con matriz | Humano validó contra parcial_BD/04_objects.sql (nombres v_usuarios_segura y mv_top_productos_categoria) y protocolo_seguridad.md; pendiente verificar en BD clon (CONNECT, USAGE TYPE, EXECUTE SP) sin ejecutar aún |
+| Auditar propuesta inicial que traía GRANT ALL ON ALL TABLES y PASSWORD 'cambiar_en_produccion' en claro | IA propuso GRANT ALL general y password literal en CREATE ROLE app_web | Rechazado por humano: GRANT ALL viola mínimo privilegio (se reemplazó por SELECT/EXECUTE por objeto, Bloques 4-9) y el password en claro viola REQ-SEC-01 (se movió a `\password`/variable fuera del repo, Bloque 11) |
+| Aplicar 6 fixes estáticos a TP6/sql/roles.sql según verificacion_roles_A.txt (DB tp6_u5_work, quitar ALTER DEFAULT duplicado, USAGE TYPE a reportes/auditor, REVOKE rutinas PUBLIC, Bloque 12 has_column_privilege, FOR ROLE CURRENT_USER) + apéndice en verificacion y esta fila, sin comandos BD | IA aplicó 7 edits (Bloques 0/3/6/10/12) + apéndice con fecha 2026-10-15 y conteo actualizado (reportes 4→7, auditor 6→9) | Humano valida con Read post-edit que cada fix quedó en su bloque y sin password inventada; live sigue bloqueado por fe_sendauth sin credencial, sin loops ni psql |
