@@ -1,0 +1,16 @@
+# Fragmento de log de auditoría — PRUEBA (TP6 Parte B)
+# Estado: RECONSTRUIDO a modo de evidencia esperada, NO capturado live.
+# Fecha: 2026-10-15 | Motor: PostgreSQL 17.10 local :5432 (PG16+ compatible)
+# Prefijo usado: log_line_prefix = '%m [%p] %u@%d %h %a '
+# Destino: stderr + archivo | log_statement = 'mod'
+# Nota: pendiente captura live con credencial superuser (bloqueo fe_sendauth/scram-sha-256).
+# Datos personales SINTÉTICOS (anon-user-###, anon.test###@ejemplo.edu). Misma sesión PID 12345; intento fallido PID 12347.
+2026-10-15 10:00:01.123 -03 [12345] [unknown]@[unknown] 127.0.0.1 psql LOG:  connection received: host=127.0.0.1 port=54321
+2026-10-15 10:00:01.210 -03 [12345] anon-user-001@foodstore 127.0.0.1 psql LOG:  connection authenticated: identity="anon-user-001" method=scram-sha-256 (/etc/postgresql/17/main/pg_hba.conf:100)
+2026-10-15 10:00:12.410 -03 [12345] anon-user-001@foodstore 127.0.0.1 psql LOG:  statement: SELECT * FROM v_pedidos_resumen LIMIT 5;
+2026-10-15 10:00:35.802 -03 [12345] anon-user-001@foodstore 127.0.0.1 psql LOG:  statement: INSERT INTO pedido (estado, forma_pago, metadatos, usuario_id) VALUES ('PENDIENTE', 'TARJETA', '{"canal":"web"}', 1);
+2026-10-15 10:00:58.377 -03 [12345] anon-user-001@foodstore 127.0.0.1 psql LOG:  statement: UPDATE producto SET stock = stock - 1 WHERE id_producto = 1 AND eliminado = FALSE;
+2026-10-15 10:01:20.055 -03 [12345] anon-user-001@foodstore 127.0.0.1 psql LOG:  disconnection: session time: 0:01:18.932 user=anon-user-001 database=foodstore host=127.0.0.1
+2026-10-15 10:01:44.009 -03 [12347] anon-user-002@foodstore 127.0.0.1 psql FATAL:  password authentication failed for user "anon-user-002" (contacto de prueba: anon.test002@ejemplo.edu)
+2026-10-15 10:01:44.011 -03 [12347] [unknown]@[unknown] 127.0.0.1 psql LOG:  connection received: host=127.0.0.1 port=54322
+# Fin del fragmento reconstruido (8 líneas de log: received, authenticated, SELECT, INSERT, UPDATE, disconnection, FATAL, received).
