@@ -42,7 +42,7 @@ BEGIN
     SET search_path = public
     AS $fn$
     DECLARE
-      v stored TEXT;
+      v TEXT;
     BEGIN
       SELECT contrasena INTO v FROM usuario WHERE mail = p_mail AND eliminado = FALSE;
       IF NOT FOUND THEN RETURN FALSE; END IF;
@@ -81,7 +81,9 @@ SELECT public.fn_autenticar('anon.test007@ejemplo.edu', 'clave-simulacro-007') A
 -- Evidencia esperada en log: 1 statement SELECT masivo sobre usuario.
 -- =============================================================================
 SET ROLE rol_soporte;
-SELECT id_usuario, mail, rol FROM usuario WHERE eliminado = FALSE; -- lectura masiva simulada
+-- Sin WHERE eliminado=FALSE: rol_soporte no tiene privilegio SELECT sobre la
+-- columna eliminado por diseño (ver roles.sql Bloque 5); igual es lectura masiva válida.
+SELECT id_usuario, mail, rol FROM usuario;
 RESET ROLE;
 
 -- =============================================================================

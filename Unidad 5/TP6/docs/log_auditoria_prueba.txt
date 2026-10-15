@@ -14,3 +14,26 @@
 2026-10-15 10:01:44.009 -03 [12347] anon-user-002@foodstore 127.0.0.1 psql FATAL:  password authentication failed for user "anon-user-002" (contacto de prueba: anon.test002@ejemplo.edu)
 2026-10-15 10:01:44.011 -03 [12347] [unknown]@[unknown] 127.0.0.1 psql LOG:  connection received: host=127.0.0.1 port=54322
 # Fin del fragmento reconstruido (8 líneas de log: received, authenticated, SELECT, INSERT, UPDATE, disconnection, FATAL, received).
+===============================================================================
+# Salida LIVE 2026-10-15 — secuencia TP6/sql/auditoria_test.sql en tp6_u5_work
+# (transaccional BEGIN...ROLLBACK + RESET ROLE, verificado por lectura previa).
+# Nota honesta: log del servidor NO disponible sin cambiar conf global; esto es la
+# salida de la secuencia psql, no el log del motor.
+# Comando: psql -U postgres -d tp6_u5_work -X -q -v ON_ERROR_STOP=1 -f auditoria_test.sql
+SET ROLE app_web OK. Paso 1 SELECT v_pedidos_resumen LIMIT 5 (5 filas reales):
+ id |     usuario     |         fecha          |   estado   |  forma_pago   |  total
+----+-----------------+------------------------+------------+---------------+----------
+  1 | Milton Gimenez  | 2026-06-15 09:00:00-03 | TERMINADO  | EFECTIVO      | 13400.00
+  3 | Milton Gimenez  | 2026-07-05 09:00:00-03 | TERMINADO  | TRANSFERENCIA | 19000.00
+  2 | Ana Garis       | 2026-06-20 09:00:00-03 | TERMINADO  | TARJETA       | 29000.00
+  5 | Ana Garis       | 2026-08-01 09:00:00-03 | CONFIRMADO | EFECTIVO      | 13900.00
+  4 | Lucia Fernandez | 2026-07-18 09:00:00-03 | TERMINADO  | TARJETA       |  8400.00
+(5 filas)
+Paso 2 INSERT INTO pedido como app_web -> ERROR: permiso denegado a la tabla pedido
+ (auditoria_test.sql:25; ON_ERROR_STOP aborta ahi: UPDATE stock y verificaciones NO
+ corrieron; transaccion revertida al cerrar sesion). Esto CONFIRMA minimo privilegio:
+ app_web (miembro de rol_app_escritura) NO tiene INSERT directo; alta solo via SP.
+Sin residuos verificado post-ejecucion: SELECT COUNT(*) FROM pedido -> 7 (demo);
+ SELECT stock FROM producto WHERE id_producto=1 -> 50 (intacto).
+Paso 4 (login fallido FATAL) no ejecutado dentro de la secuencia (por diseno: probar
+ fuera con PGPASSWORD=incorrecta; no se probo para no ensuciar pg_hba ni logs ajenos).

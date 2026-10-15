@@ -65,6 +65,9 @@ GRANT SELECT ON v_categorias_vigentes, v_productos_vigentes, v_pedidos_resumen, 
 REVOKE ALL ON usuario FROM PUBLIC;
 GRANT SELECT (id_usuario, nombre, apellido, mail, celular, rol) ON usuario TO rol_soporte;
 -- Sin contrasena: la columna contrasena queda excluida a propósito.
+-- Diseño intencional: eliminado también queda excluido (sin privilegio SELECT para
+-- rol_soporte); por eso el simulacro (simulacro_incidente.sql Bloque 4) no filtra
+-- por eliminado y hace lectura masiva sin WHERE. No agregar grants aquí.
 
 -- -----------------------------------------------------------------------------
 -- Bloque 6. Escritura mínima: solo vía procedimiento + función de cálculo

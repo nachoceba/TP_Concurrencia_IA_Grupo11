@@ -169,3 +169,59 @@ Fecha (UTC): 2026-10-15
 6. Owner defaults: `FOR ROLE postgres` -> `FOR ROLE CURRENT_USER` en los ALTER DEFAULT PRIVILEGES, con comentario de alinear owner de carga.
 Nota honesta: verificacion live sigue BLOQUEADA por `fe_sendauth: no password supplied` (pg_hba scram-sha-256, sin PGPASSWORD ni pgpass); pendiente credencial del usuario. Cero comandos BD en esta pasada (solo Read/Edit).
 Conteo estatico actualizado: rol_reportes 4 -> 7 (+3 USAGE TYPE); rol_auditor 6 -> 9 (+3 USAGE TYPE); defaults SELECT futuro: 1 compartido (duplicado removido); +2 REVOKE en rutinas (Bloque 6).
+===============================================================================
+LIVE 2026-10-15 — Verificacion real contra BD efimera tp6_u5_work (credencial PGPASSWORD)
+Base: parcial_BD/01_schema.sql -> 04_objects.sql -> 02_data_demo.sql (sin 03 masivo).
+Backup previo: pg_dump -Fc a TEMP (fuera del repo). roles.sql aplicado SIN ERRORES.
+Comandos: psql -U postgres -d tp6_u5_work -X -q -v ON_ERROR_STOP=1 (-c/-f), PGCONNECT_TIMEOUT=5.
+-------------------------------------------------------------------------------
+Q1 pg_roles (NOLOGIN/limits) — OK:
+      rolname      | rolcanlogin | rolconnlimit
+-------------------+-------------+--------------
+ admin_datos       | t           |            5
+ app_web           | t           |           20
+ rol_app_escritura | f           |           -1
+ rol_app_lectura   | f           |           -1
+ rol_auditor       | f           |           -1
+ rol_reportes      | f           |           -1
+ rol_soporte       | f           |           -1
+(7 filas) -> 5 grupos NOLOGIN OK; logins con LIMIT 20/5 OK.
+-------------------------------------------------------------------------------
+Q2 role_table_grants (ordenado) — 12 filas:
+ rol_app_lectura: SELECT en 6 vistas (v_catalogo_productos, v_categorias_vigentes,
+   v_pedido_detalle, v_pedidos_resumen, v_productos_vigentes, v_usuarios_segura)
+ rol_auditor: SELECT en v_pedidos_resumen, v_usuarios_segura
+ rol_reportes: SELECT en v_pedidos_resumen
+ rol_soporte: SELECT en v_pedido_detalle, v_pedidos_resumen, v_usuarios_segura
+Nota: mv_top_productos_categoria (MV) NO aparece en role_table_grants; check aparte:
+ has_table_privilege MV SELECT: lectura=t, reportes=t, auditor=t, soporte=f (correcto:
+ soporte Bloque 7 no incluye MV).
+role_routine_grants: EXECUTE sp_crear_pedido solo rol_app_escritura (1 fila);
+ EXECUTE calcular_total_pedido a rol_soporte + rol_auditor (2 filas).
+role_column_grants en usuario: rol_soporte SELECT en 6 columnas
+ (id_usuario, nombre, apellido, mail, celular, rol); contrasena AUSENTE (correcto).
+Membresias pg_auth_members: rol_app_escritura->app_web? no: app_web MIEMBRO DE
+ rol_app_escritura; rol_app_escritura MIEMBRO DE rol_app_lectura (herencia OK);
+ admin_datos MIEMBRO DE rol_auditor. (3 filas, herencia lectura->escritura OK.)
+-------------------------------------------------------------------------------
+Q3 has_column_privilege usuario — OK (columna-level confirmado):
+ soporte_id=t, soporte_pass=f, reportes_pass=f, appweb_pass=f
+ (id_usuario true / contrasena false para rol_soporte; esperado true,false,false.)
+-------------------------------------------------------------------------------
+Q4 has_function_privilege sp_crear_pedido — OK:
+ escritura_sp=t, lectura_sp=f, soporte_fn(calcular_total_pedido)=t
+ (solo escritura ejecuta SP; lectura NO; soporte ejecuta funcion calculo.)
+-------------------------------------------------------------------------------
+Q5 negativo: SET ROLE rol_soporte; INSERT INTO pedido ... -> FALLA como se espera:
+ ERROR: permiso denegado a la tabla pedido (+ RESET ROLE posterior OK).
+ Minimo privilegio CONFIRMADO EN BD: sin INSERT directo, solo via SP.
+-------------------------------------------------------------------------------
+RESUMEN LIVE: pasos OK (carga 01/04/02, backup, roles.sql, Q1-Q5).
+Grants live por rol (role_table_grants): lectura 6, soporte 3, auditor 2, reportes 1
+(+ MV por has_table_privilege: lectura/reportes/auditor; + columna-level soporte 6 cols
+sin contrasena; + EXECUTE: escritura 1 SP, soporte/auditor 1 FN).
+Minimo privilegio: CONFIRMADO EN BD (Q5 denegado + Q3/Q4 por columna/rutina).
+Conteo estatico previo queda sustituido por este conteo live donde difiere
+(estatico contaba GRANTs del script; live cuenta grants efectivos en catalogo).
+===============================================================================
+RE-CHECK LIVE 2026-10-15: re-check OK (roles.sql + usuario_anon.sql sin errores, Q_ANON=Q_REAL ADMIN 1/USUARIO 4, simulacro Bloque 6 ESCALAMIENTO BLOQUEADO OK, auditoria INSERT denegado sin residuos, BD tp6_u5_work dropeada).
