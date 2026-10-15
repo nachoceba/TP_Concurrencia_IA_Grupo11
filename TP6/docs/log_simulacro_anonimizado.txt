@@ -1,0 +1,24 @@
+# Log simulacro incidente — ANONIMIZADO ANTES DE ANÁLISIS (TP6 Parte C)
+# Estado: RECONSTRUIDO como evidencia esperada, NO capturado live (pendiente credencial).
+# Criterio anonimización (mismo que usuario_anon Clase 2, determinista por id):
+#   nombres/mails reales → anon-user-### / anon-user-###@ejemplo.edu
+#   IPs reales → rango documentación RFC5737 203.0.113.N (origen simulado 203.0.113.7)
+#   Ningún dato real en este archivo; cuenta sintética anon.test007@ejemplo.edu.
+# Fecha simulada: 2026-10-15 | Motor: PostgreSQL 17.10 clon :5432
+# Prefijo: log_line_prefix = '%m [%p] %u@%d %h %a ' | log_statement = 'mod'
+# Sesión atacante simulada PID 12401 (10:02–10:06); sesión control owner PID 12402.
+2026-10-15 10:02:01.100 -03 [12401] [unknown]@[unknown] 203.0.113.7 psql LOG:  connection received: host=203.0.113.7 port=54401
+2026-10-15 10:02:01.210 -03 [12401] anon-user-007@foodstore 203.0.113.7 psql FATAL:  password authentication failed for user "anon-user-007" (intento 1/4)
+2026-10-15 10:02:23.310 -03 [12401] [unknown]@[unknown] 203.0.113.7 psql LOG:  connection received: host=203.0.113.7 port=54402
+2026-10-15 10:02:23.410 -03 [12401] anon-user-007@foodstore 203.0.113.7 psql FATAL:  password authentication failed for user "anon-user-007" (intento 2/4)
+2026-10-15 10:02:45.520 -03 [12401] [unknown]@[unknown] 203.0.113.7 psql LOG:  connection received: host=203.0.113.7 port=54403
+2026-10-15 10:02:45.620 -03 [12401] anon-user-007@foodstore 203.0.113.7 psql FATAL:  password authentication failed for user "anon-user-007" (intento 3/4)
+2026-10-15 10:03:02.730 -03 [12401] [unknown]@[unknown] 203.0.113.7 psql LOG:  connection received: host=203.0.113.7 port=54404
+2026-10-15 10:03:02.830 -03 [12401] anon-user-007@foodstore 203.0.113.7 psql FATAL:  password authentication failed for user "anon-user-007" (intento 4/4)
+2026-10-15 10:03:30.050 -03 [12401] anon-user-007@foodstore 203.0.113.7 psql LOG:  connection authenticated: identity="anon-user-007" method=scram-sha-256 (/etc/postgresql/17/main/pg_hba.conf:100)
+2026-10-15 10:04:10.300 -03 [12401] anon-user-007@foodstore 203.0.113.7 psql LOG:  statement: SELECT id_usuario, mail, rol FROM usuario WHERE eliminado = FALSE;
+2026-10-15 10:04:55.410 -03 [12401] anon-user-007@foodstore 203.0.113.7 psql ERROR:  permission denied for role admin_datos
+2026-10-15 10:05:12.600 -03 [12401] anon-user-007@foodstore 203.0.113.7 psql ERROR:  must be member of role "admin_datos"
+2026-10-15 10:05:40.020 -03 [12402] owner_clon@foodstore 127.0.0.1 psql LOG:  statement: SELECT count(*) FROM pg_auth_members WHERE roleid='admin_datos'::regrole AND member='rol_soporte'::regrole;
+2026-10-15 10:06:05.900 -03 [12401] anon-user-007@foodstore 203.0.113.7 psql LOG:  disconnection: session time: 0:04:04.800 user=anon-user-007 database=foodstore host=203.0.113.7
+# Fin fragmento (14 líneas log: 4 received+FATAL, 1 éxito, 1 SELECT masivo, 2 errores escalamiento, 1 verificación, 1 disconnect).
