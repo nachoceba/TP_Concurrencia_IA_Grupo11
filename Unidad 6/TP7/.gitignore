@@ -1,0 +1,7 @@
+# Los respaldos contienen datos personales (tabla usuario): nunca al repo
+backups/*.dump
+backups/*.dump.tmp
+backups/*.counts
+# Logs de corridas locales; la evidencia curada se copia a evidencias/
+logs/
+.pgpass
