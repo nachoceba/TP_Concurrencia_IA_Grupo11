@@ -1,0 +1,79 @@
+### Simulacro oficial (pg_restore secuencial, JOBS=1)
+2026-10-28 22:29:55-0300 [INFO] Respaldo: foodstore_20261028_222938.dump | tomado 2026-10-28 22:29:38 | antigüedad 0 h 0 min 17 s
+NOTICE:  database "foodstore_restore_test" does not exist, skipping
+2026-10-28 22:29:55-0300 [INFO] Cronómetro INICIO — createdb foodstore_restore_test
+2026-10-28 22:29:58-0300 [INFO] pg_restore terminó (jobs=1) en 2.7 s
+2026-10-28 22:29:58-0300 [OK] Conteos iguales al registro previo: categoria|12 detalle_pedido|400000 pedido|200000 producto|50000 usuario|20000 
+2026-10-28 22:29:58-0300 [OK] productos_invalidos=0 detalles_invalidos=0
+2026-10-28 22:29:58-0300 [OK] Cronómetro FIN — RTO observado: 3.0 s | RPO observado (antigüedad del respaldo): 17 s
+2026-10-28 22:29:58-0300 [INFO] Detalle de validación agregado al log: /home/claude/tp/Unidad 6/TP7/logs/restore_20261028.log
+exit=0
+
+### Detalle de validación (logs/restore_*.log)
+== Base conectada (tiene que ser foodstore_restore_test)
+    current_database    
+------------------------
+ foodstore_restore_test
+(1 row)
+
+== Productos inválidos (tiene que dar 0)
+ productos_invalidos 
+---------------------
+                   0
+(1 row)
+
+== Detalles inválidos (tiene que dar 0)
+ detalles_invalidos 
+--------------------
+                  0
+(1 row)
+
+== Restricciones restauradas por tipo (c=CHECK, f=FK, p=PK, u=UNIQUE)
+ contype | cantidad 
+---------+----------
+ c       |        8
+ f       |        4
+ p       |        5
+ u       |        1
+(4 rows)
+
+== FKs huérfanas en detalle_pedido (tiene que dar 0)
+ detalles_huerfanos 
+--------------------
+                  0
+(1 row)
+
+== Triggers de Food Store restaurados
+     tabla      |    trigger_name    
+----------------+--------------------
+ detalle_pedido | trg_subtotal_ins
+ detalle_pedido | trg_subtotal_upd
+ detalle_pedido | trg_total_del
+ detalle_pedido | trg_total_ins
+ detalle_pedido | trg_total_stmt_del
+ detalle_pedido | trg_total_stmt_ins
+ detalle_pedido | trg_total_stmt_upd
+ detalle_pedido | trg_total_upd
+(8 rows)
+
+
+### Comparación foodstore (original, en vivo) vs foodstore_restore_test
+control                                      foodstore    restore_test
+pedidos                                         200005          200000
+ventas post-respaldo (simulacro_rpo)                 5               0
+restricciones (pg_constraint)                       18              18
+índices                                            13              13
+vistas + MV                                          7               7
+funciones/procedimientos                             6               6
+filas en mv_top_productos_categoria                  1               1
+tamaño de la base                              188 MB           96 MB
+tamaño de pedido                               119 MB           27 MB
+tablas con estadísticas (analyze)                   5               4
+
+### Mejora medida: pg_restore secuencial vs paralelo (3 corridas cada uno, mismo dump)
+jobs=1 corrida 1 → RTO observado: 4.1 s
+jobs=1 corrida 2 → RTO observado: 3.3 s
+jobs=1 corrida 3 → RTO observado: 3.3 s
+jobs=4 corrida 1 → RTO observado: 2.7 s
+jobs=4 corrida 2 → RTO observado: 3.1 s
+jobs=4 corrida 3 → RTO observado: 2.7 s
