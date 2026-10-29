@@ -26,11 +26,16 @@ FROM pg_constraint
 WHERE connamespace = 'public'::regnamespace
 GROUP BY contype ORDER BY contype;
 
-\echo '== FKs huérfanas en detalle_pedido (tiene que dar 0)'
-SELECT COUNT(*) AS detalles_huerfanos
-FROM detalle_pedido d
-LEFT JOIN pedido p ON p.id_pedido = d.pedido_id
-WHERE p.id_pedido IS NULL;
+\echo '== Foreign keys restauradas y validadas (no_validadas tiene que dar 0)'
+-- No depende de nombres de columnas: si una FK está validada, Postgres garantiza
+-- que no hay filas huérfanas en la tabla hija.
+SELECT conrelid::regclass AS tabla, conname AS fk, convalidated AS validada
+FROM pg_constraint
+WHERE contype = 'f' AND connamespace = 'public'::regnamespace
+ORDER BY 1, 2;
+SELECT COUNT(*) FILTER (WHERE NOT convalidated) AS fk_no_validadas
+FROM pg_constraint
+WHERE contype = 'f' AND connamespace = 'public'::regnamespace;
 
 \echo '== Triggers de Food Store restaurados'
 SELECT event_object_table AS tabla, trigger_name
