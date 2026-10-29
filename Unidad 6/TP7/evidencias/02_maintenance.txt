@@ -1,0 +1,79 @@
+Null display is "—".
+=================== MANTENIMIENTO FOOD STORE ===================
+   base    |           ejecutado           
+-----------+-------------------------------
+ foodstore | 2026-10-28 22:28:51.088064-03
+(1 row)
+
+
+== 1. CONFIGURACIÓN DE AUTOVACUUM
+              name               | setting | unit 
+---------------------------------+---------+------
+ autovacuum                      | on      | —
+ autovacuum_analyze_scale_factor | 0.1     | —
+ autovacuum_analyze_threshold    | 50      | —
+ autovacuum_max_workers          | 3       | —
+ autovacuum_naptime              | 60      | s
+ autovacuum_vacuum_scale_factor  | 0.2     | —
+ autovacuum_vacuum_threshold     | 50      | —
+ track_counts                    | on      | —
+(8 rows)
+
+-- Workers de autovacuum corriendo ahora
+ pid | duracion | tarea 
+-----+----------+-------
+(0 rows)
+
+CREATE VIEW
+
+== 2. DIAGNÓSTICO PREVIO (justifica las acciones del punto 3)
+           tabla            | vivas  | muertas | pct_muertas | umbral_autovacuum | mod_desde_analyze | ult_vacuum  | ult_analyze | accion  
+----------------------------+--------+---------+-------------+-------------------+-------------------+-------------+-------------+---------
+ categoria                  |     12 |       0 |         0.0 |                52 |                12 | —           | —           | ANALYZE
+ detalle_pedido             | 400000 |       0 |         0.0 |             80050 |                 0 | 10-28 22:27 | 10-28 22:27 | nada
+ mv_top_productos_categoria |      0 |       0 |           — |                50 |                 0 | —           | —           | ANALYZE
+ pedido                     | 200000 |       0 |         0.0 |             40050 |                 0 | 10-28 22:27 | 10-28 22:27 | nada
+ producto                   |  50000 |       0 |         0.0 |             10050 |                 0 | 10-28 22:27 | 10-28 22:27 | nada
+ usuario                    |  20000 |       0 |         0.0 |              4050 |                 0 | 10-28 22:27 | 10-28 22:27 | nada
+(6 rows)
+
+
+== 3. ACCIONES JUSTIFICADAS
+-- 3a. VACUUM (ANALYZE) sólo en tablas con > 20 % de tuplas muertas y > 1000 muertas
+--     Libera espacio reutilizable y actualiza estadísticas sin bloquear la tabla.
+-- 3b. REFRESH de la vista materializada si está vacía y hay ventas cargadas
+--     (pasa cuando 04_objects.sql corre antes de cargar los datos).
+--     CONCURRENTLY usa el índice único uq_mv_top_productos_puesto y no bloquea lecturas.
+--     Va ANTES del ANALYZE: analizar una MV vacía y después refrescarla deja estadísticas viejas.
+REFRESH MATERIALIZED VIEW
+-- 3c. ANALYZE sólo en tablas o MV sin estadísticas o con muchos cambios desde el último
+--     Sin estadísticas el planificador estima mal y elige planes malos.
+psql:sql/maintenance.sql:81: INFO:  analyzing "public.categoria"
+psql:sql/maintenance.sql:81: INFO:  "categoria": scanned 1 of 1 pages, containing 12 live rows and 0 dead rows; 12 rows in sample, 12 estimated total rows
+ANALYZE
+psql:sql/maintenance.sql:81: INFO:  analyzing "public.mv_top_productos_categoria"
+psql:sql/maintenance.sql:81: INFO:  "mv_top_productos_categoria": scanned 1 of 1 pages, containing 1 live rows and 0 dead rows; 1 rows in sample, 1 estimated total rows
+ANALYZE
+ pg_stat_clear_snapshot 
+------------------------
+ 
+(1 row)
+
+
+== 4. ESTADO POSTERIOR (todas las tablas tienen que quedar en "nada")
+           tabla            | vivas  | muertas | pct_muertas | ult_vacuum  | ult_analyze | accion 
+----------------------------+--------+---------+-------------+-------------+-------------+--------
+ categoria                  |     12 |       0 |         0.0 | —           | 10-28 22:28 | nada
+ detalle_pedido             | 400000 |       0 |         0.0 | 10-28 22:27 | 10-28 22:27 | nada
+ mv_top_productos_categoria |      1 |       0 |         0.0 | —           | 10-28 22:28 | nada
+ pedido                     | 200000 |       0 |         0.0 | 10-28 22:27 | 10-28 22:27 | nada
+ producto                   |  50000 |       0 |         0.0 | 10-28 22:27 | 10-28 22:27 | nada
+ usuario                    |  20000 |       0 |         0.0 | 10-28 22:27 | 10-28 22:27 | nada
+(6 rows)
+
+ filas_mv_top_productos 
+------------------------
+                      1
+(1 row)
+
+=================== FIN MANTENIMIENTO ===================

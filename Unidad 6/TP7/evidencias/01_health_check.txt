@@ -1,0 +1,79 @@
+Null display is "—".
+=================== HEALTH CHECK FOOD STORE ===================
+   base    |           ejecutado           |                                                                  motor                                                                   
+-----------+-------------------------------+------------------------------------------------------------------------------------------------------------------------------------------
+ foodstore | 2026-10-28 22:28:51.021317-03 | PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+(1 row)
+
+
+== 1. TAMAÑO DE LA BASE
+ tamano 
+--------
+ 188 MB
+(1 row)
+
+-- Top 5 tablas por tamaño total (datos + índices + TOAST)
+     tabla      |  total  | indices 
+----------------+---------+---------
+ pedido         | 119 MB  | 32 MB
+ detalle_pedido | 48 MB   | 19 MB
+ producto       | 8128 kB | 1512 kB
+ usuario        | 5008 kB | 2184 kB
+ categoria      | 24 kB   | 16 kB
+(5 rows)
+
+
+== 2. ACTIVIDAD DE CONEXIONES
+ conexiones | max_conexiones | pct_uso | xact_commit | xact_rollback | pct_rollback | cache_hit_pct | deadlocks | estado 
+------------+----------------+---------+-------------+---------------+--------------+---------------+-----------+--------
+          1 |            100 |     1.0 |          27 |             0 |         0.00 |         99.96 |         0 | OK
+(1 row)
+
+-- Conexiones por usuario y estado
+ usuario  | estado | cantidad 
+----------+--------+----------
+ postgres | active |        1
+(1 row)
+
+
+== 3. ESTADO DE TABLAS (tuplas muertas, autovacuum, estadísticas)
+           tabla            | vivas  | muertas | pct_muertas | mod_desde_analyze |  ultimo_vacuum   |  ultimo_analyze  |         estado          
+----------------------------+--------+---------+-------------+-------------------+------------------+------------------+-------------------------
+ categoria                  |     12 |       0 |         0.0 |                12 | —                | —                | AVISO: sin estadísticas
+ detalle_pedido             | 400000 |       0 |         0.0 |                 0 | 2026-10-28 22:27 | 2026-10-28 22:27 | OK
+ mv_top_productos_categoria |      0 |       0 |           — |                 0 | —                | —                | AVISO: sin estadísticas
+ pedido                     | 200000 |       0 |         0.0 |                 0 | 2026-10-28 22:27 | 2026-10-28 22:27 | OK
+ producto                   |  50000 |       0 |         0.0 |                 0 | 2026-10-28 22:27 | 2026-10-28 22:27 | OK
+ usuario                    |  20000 |       0 |         0.0 |                 0 | 2026-10-28 22:27 | 2026-10-28 22:27 | OK
+(6 rows)
+
+-- Vistas materializadas: ¿pobladas y con filas?
+           vista            | poblada | tamano  
+----------------------------+---------+---------
+ mv_top_productos_categoria | t       | 0 bytes
+(1 row)
+
+ filas_mv_top_productos |                        estado                        
+------------------------+------------------------------------------------------
+                      0 | ALERTA: MV vacía con ventas cargadas (falta REFRESH)
+(1 row)
+
+
+== 4. CONSULTAS ACTIVAS (no idle; se excluye esta sesión)
+ pid | usuario | estado | duracion | espera | consulta | alerta 
+-----+---------+--------+----------+--------+----------+--------
+(0 rows)
+
+-- Sesiones bloqueadas por otra (tiene que dar 0 filas)
+ pid | bloqueada_por | esperando | consulta 
+-----+---------------+-----------+----------
+(0 rows)
+
+
+== 5. EDAD DE TRANSACCIONES (prevención de wraparound)
+   base    | edad_xid | pct_hacia_limite | estado 
+-----------+----------+------------------+--------
+ foodstore |       44 |             0.00 | OK
+(1 row)
+
+=================== FIN HEALTH CHECK ===================
