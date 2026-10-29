@@ -69,11 +69,17 @@ SELECT m.matviewname AS vista, m.ispopulated AS poblada,
        pg_size_pretty(pg_relation_size(format('%I.%I', m.schemaname, m.matviewname)::regclass)) AS tamano
 FROM pg_matviews m
 WHERE m.schemaname = 'public';
+-- La MV viene de parcial_BD/04_objects.sql; si la base no la tiene, se saltea.
+SELECT to_regclass('public.mv_top_productos_categoria') IS NOT NULL AS hay_mv \gset
+\if :hay_mv
 SELECT COUNT(*) AS filas_mv_top_productos,
        CASE WHEN COUNT(*) = 0 AND EXISTS (SELECT 1 FROM detalle_pedido)
             THEN 'ALERTA: MV vacía con ventas cargadas (falta REFRESH)'
             ELSE 'OK' END AS estado
 FROM mv_top_productos_categoria;
+\else
+\echo '(la base no tiene mv_top_productos_categoria: control omitido)'
+\endif
 
 -- ---------------------------------------------------------------------------
 \echo '\n== 4. CONSULTAS ACTIVAS (no idle; se excluye esta sesión)'

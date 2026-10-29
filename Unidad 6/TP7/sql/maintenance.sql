@@ -69,10 +69,15 @@ FROM diag WHERE necesita_vacuum
 \echo '--     (pasa cuando 04_objects.sql corre antes de cargar los datos).'
 \echo '--     CONCURRENTLY usa el índice único uq_mv_top_productos_puesto y no bloquea lecturas.'
 \echo '--     Va ANTES del ANALYZE: analizar una MV vacía y después refrescarla deja estadísticas viejas.'
+SELECT to_regclass('public.mv_top_productos_categoria') IS NOT NULL AS hay_mv \gset
+\if :hay_mv
 SELECT 'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_top_productos_categoria'
 WHERE NOT EXISTS (SELECT 1 FROM mv_top_productos_categoria)
   AND EXISTS (SELECT 1 FROM detalle_pedido)
 \gexec
+\else
+\echo '--     (la base no tiene mv_top_productos_categoria: paso omitido)'
+\endif
 
 \echo '-- 3c. ANALYZE sólo en tablas o MV sin estadísticas o con muchos cambios desde el último'
 \echo '--     Sin estadísticas el planificador estima mal y elige planes malos.'
@@ -91,6 +96,8 @@ SELECT tabla, vivas, muertas, pct_muertas,
             WHEN necesita_analyze THEN 'PENDIENTE ANALYZE'
             ELSE 'nada' END AS accion
 FROM diag ORDER BY tabla;
+\if :hay_mv
 SELECT COUNT(*) AS filas_mv_top_productos FROM mv_top_productos_categoria;
+\endif
 
 \echo '=================== FIN MANTENIMIENTO ==================='
