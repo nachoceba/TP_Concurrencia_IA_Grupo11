@@ -57,8 +57,8 @@ log INFO "pg_restore terminó (jobs=$JOBS) en $(seg "$T0" "$T1") s"
 
 # Validación 1: conteos idénticos a los registrados antes del respaldo
 DESPUES=$(psql --no-password -X -q -tA -F '|' -v ON_ERROR_STOP=1 -d "$DESTINO" \
-          -f "$BASE_DIR/sql/conteo_filas.sql")
-if [ "$DESPUES" = "$(cat "$COUNTS")" ]; then
+          -f "$BASE_DIR/sql/conteo_filas.sql" | tr -d '\r')     # \r\n de psql en Windows
+if [ "$DESPUES" = "$(tr -d '\r' < "$COUNTS")" ]; then
   log OK "Conteos iguales al registro previo: $(echo "$DESPUES" | tr '\n' ' ')"
 else
   log ERROR "Conteos DISTINTOS"; diff <(cat "$COUNTS") <(echo "$DESPUES") | tee -a "$LOG"; false
@@ -66,9 +66,9 @@ fi
 
 # Validación 2: reglas lógicas (tienen que dar 0)
 INV_PROD=$(psql --no-password -X -tA -d "$DESTINO" -c \
-  "SELECT COUNT(*) FROM producto WHERE precio < 0 OR stock < 0")
+  "SELECT COUNT(*) FROM producto WHERE precio < 0 OR stock < 0" | tr -d '\r')
 INV_DET=$(psql --no-password -X -tA -d "$DESTINO" -c \
-  "SELECT COUNT(*) FROM detalle_pedido WHERE cantidad <= 0 OR precio_unitario < 0")
+  "SELECT COUNT(*) FROM detalle_pedido WHERE cantidad <= 0 OR precio_unitario < 0" | tr -d '\r')
 [ "$INV_PROD" = 0 ] && [ "$INV_DET" = 0 ] || {
   log ERROR "Inválidos: productos=$INV_PROD detalles=$INV_DET"; false; }
 log OK "productos_invalidos=$INV_PROD detalles_invalidos=$INV_DET"

@@ -46,7 +46,8 @@ log INFO "pg_dump: $(pg_dump --version)"
 
 # 1) Conteo de filas ANTES del respaldo (se compara después de restaurar)
 psql --no-password -X -q -tA -F '|' -v ON_ERROR_STOP=1 -d "$DB" \
-     -f "$BASE_DIR/sql/conteo_filas.sql" > "$COUNTS" 2> >(tee -a "$LOG" >&2)
+     -f "$BASE_DIR/sql/conteo_filas.sql" 2> >(tee -a "$LOG" >&2) | tr -d '\r' > "$COUNTS"
+# tr -d '\r': en Windows psql termina las líneas con \r\n y rompe log y comparación
 log INFO "Filas antes del respaldo: $(tr '\n' ' ' < "$COUNTS")"
 
 # 2) Dump en formato custom a un .tmp: si falla a mitad de camino nunca queda
