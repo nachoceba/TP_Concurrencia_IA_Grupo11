@@ -1,0 +1,7 @@
+# foodstore.mongodb.js (migración + prueba de reglas R1/R2)
+# Ejecutado: 2026-11-05 22:27 -0300 · MongoDB 8.0.4 · mongosh 2.14.1
+
+pedidos migrados: 7
+lineas migradas:  16
+R1 OK, rechazado: Document failed validation
+R2 OK, rechazado: Document failed validation

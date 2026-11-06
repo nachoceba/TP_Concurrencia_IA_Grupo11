@@ -1,0 +1,10 @@
+# Modelo v1 (commit dec390d) — diferencias detectadas
+# Ejecutado: 2026-11-05 22:27 -0300 · MongoDB 8.0.4 · mongosh 2.14.1
+
+v1 b) CANCELADO: [{"id_pedido":4}]
+v1 b) TERMINADO: [{"id_pedido":2}]
+v1 c) 'Bebida Gaseosa': [{"id_pedido":4}]
+v1 c) id 11: 0
+v1 lineas por pedido: 5
+v1 tipo de cantidad: [{"t":"int"}]
+v1 insert linea cantidad=2 aceptado

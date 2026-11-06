@@ -1,0 +1,191 @@
+# consultas.mongodb.js (Consigna 4)
+# Ejecutado: 2026-11-05 22:27 -0300 · MongoDB 8.0.4 · mongosh 2.14.1
+
+
+== a) Todos los pedidos
+[
+  {
+    id_pedido: 1,
+    fecha: ISODate('2026-06-15T12:00:00.000Z'),
+    estado: 'TERMINADO',
+    total: Decimal128('13400.00')
+  },
+  {
+    id_pedido: 2,
+    fecha: ISODate('2026-06-20T12:00:00.000Z'),
+    estado: 'TERMINADO',
+    total: Decimal128('29000.00')
+  },
+  {
+    id_pedido: 3,
+    fecha: ISODate('2026-07-05T12:00:00.000Z'),
+    estado: 'TERMINADO',
+    total: Decimal128('19000.00')
+  },
+  {
+    id_pedido: 4,
+    fecha: ISODate('2026-07-18T12:00:00.000Z'),
+    estado: 'TERMINADO',
+    total: Decimal128('8400.00')
+  },
+  {
+    id_pedido: 5,
+    fecha: ISODate('2026-08-01T12:00:00.000Z'),
+    estado: 'CONFIRMADO',
+    total: Decimal128('13900.00')
+  },
+  {
+    id_pedido: 6,
+    fecha: ISODate('2026-08-10T12:00:00.000Z'),
+    estado: 'PENDIENTE',
+    total: Decimal128('8700.00')
+  },
+  {
+    id_pedido: 7,
+    fecha: ISODate('2026-08-12T12:00:00.000Z'),
+    estado: 'CANCELADO',
+    total: Decimal128('7100.00')
+  }
+]
+
+== b) Pedidos TERMINADO
+[
+  {
+    id_pedido: 1,
+    fecha: ISODate('2026-06-15T12:00:00.000Z'),
+    estado: 'TERMINADO',
+    total: Decimal128('13400.00')
+  },
+  {
+    id_pedido: 2,
+    fecha: ISODate('2026-06-20T12:00:00.000Z'),
+    estado: 'TERMINADO',
+    total: Decimal128('29000.00')
+  },
+  {
+    id_pedido: 3,
+    fecha: ISODate('2026-07-05T12:00:00.000Z'),
+    estado: 'TERMINADO',
+    total: Decimal128('19000.00')
+  },
+  {
+    id_pedido: 4,
+    fecha: ISODate('2026-07-18T12:00:00.000Z'),
+    estado: 'TERMINADO',
+    total: Decimal128('8400.00')
+  }
+]
+cantidad b): 4
+
+== c) Pedidos con el producto 11 (Coca-Cola Original 1.5L)
+[
+  {
+    id_pedido: 1,
+    estado: 'TERMINADO',
+    lineas: [
+      {
+        id_detalle_pedido: 2,
+        producto: {
+          id_producto: 11,
+          nombre: 'Coca-Cola Original 1.5L',
+          categoria: {
+            id_categoria: 4,
+            nombre: 'Bebidas'
+          }
+        },
+        cantidad: 2,
+        precio_unitario: Decimal128('2200.00'),
+        subtotal: Decimal128('4400.00')
+      }
+    ]
+  },
+  {
+    id_pedido: 3,
+    estado: 'TERMINADO',
+    lineas: [
+      {
+        id_detalle_pedido: 8,
+        producto: {
+          id_producto: 11,
+          nombre: 'Coca-Cola Original 1.5L',
+          categoria: {
+            id_categoria: 4,
+            nombre: 'Bebidas'
+          }
+        },
+        cantidad: 1,
+        precio_unitario: Decimal128('2200.00'),
+        subtotal: Decimal128('2200.00')
+      }
+    ]
+  },
+  {
+    id_pedido: 4,
+    estado: 'TERMINADO',
+    lineas: [
+      {
+        id_detalle_pedido: 10,
+        producto: {
+          id_producto: 11,
+          nombre: 'Coca-Cola Original 1.5L',
+          categoria: {
+            id_categoria: 4,
+            nombre: 'Bebidas'
+          }
+        },
+        cantidad: 1,
+        precio_unitario: Decimal128('2200.00'),
+        subtotal: Decimal128('2200.00')
+      }
+    ]
+  },
+  {
+    id_pedido: 6,
+    estado: 'PENDIENTE',
+    lineas: [
+      {
+        id_detalle_pedido: 15,
+        producto: {
+          id_producto: 11,
+          nombre: 'Coca-Cola Original 1.5L',
+          categoria: {
+            id_categoria: 4,
+            nombre: 'Bebidas'
+          }
+        },
+        cantidad: 1,
+        precio_unitario: Decimal128('2200.00'),
+        subtotal: Decimal128('2200.00')
+      }
+    ]
+  }
+]
+cantidad c): 4
+
+== d) Ticket promedio (justificación del umbral)
+[
+  {
+    pedidos: 7,
+    ticket_promedio: Decimal128('14214.29')
+  }
+]
+
+== d) Pedidos con total > 14000
+[
+  {
+    id_pedido: 2,
+    fecha: ISODate('2026-06-20T12:00:00.000Z'),
+    estado: 'TERMINADO',
+    total: Decimal128('29000.00')
+  },
+  {
+    id_pedido: 3,
+    fecha: ISODate('2026-07-05T12:00:00.000Z'),
+    estado: 'TERMINADO',
+    total: Decimal128('19000.00')
+  }
+]
+cantidad d): 2
+
+== Control: pedidos descuadrados (esperado 0)
+0
