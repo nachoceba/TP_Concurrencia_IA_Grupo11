@@ -1,0 +1,104 @@
+TP 8 · Casos C2 a C6 · corrida del 2026-11-09 23:26:08
+Base de pruebas: food_store_tp8 · tablet: movil/foodstore_movil.db
+
+==================== 0 · Copia del servidor en su estado inicial + instantánea S1 ====================
+-- Estado del servidor ANTES de la simulación:
+ pedidos | detalles | stock_total |           huella_stock           
+---------+----------+-------------+----------------------------------
+       7 |       16 |         709 | 4885fa3d84f2e2cf3b8fd536248918c7
+(1 row)
+
+evento               filas_snapshot  fecha_copia          productos_vendibles  lapidas
+-------------------  --------------  -------------------  -------------------  -------
+Instantánea cargada  18              2026-11-09T23:26:08  16                   1      
+
+==================== 1 · Tablet sin señal: se arman los borradores (precios de S1) ====================
+solicitud     borrador  items                                                           estado   
+------------  --------  --------------------------------------------------------------  ---------
+00000000c2a1  c2c2c2c2  2 x Napolitana @ 520000 + 1 x Coca-Cola Original 1.5L @ 220000  PENDIENTE
+00000000c300  c3c3c3c3  15 x Flan Casero @ 280000                                       PENDIENTE
+00000000c400  c4c4c4c4  6 x Empanada Roquefort @ 95000                                  PENDIENTE
+00000000c500  c5c5c5c5  1 x Muzzarella @ 450000 + 2 x Agua Mineral 500ml @ 120000       PENDIENTE
+00000000c600  c6c6c6c6  1 x Burger Simple Cheese @ 650000                               PENDIENTE
+111111111111  11111111  2 x Muzzarella @ 450000 + 3 x Coca-Cola Original 1.5L @ 220000  PENDIENTE
+
+==================== 2 · Mientras tanto, en el servidor: sube la Napolitana (C2) y baja lógica de la Roquefort (C4) ====================
+ id_producto |       nombre       | precio  | stock | disponible | eliminado 
+-------------+--------------------+---------+-------+------------+-----------
+           4 | Napolitana         | 5600.00 |    15 | t          | f
+           7 | Empanada Roquefort |  950.00 |    40 | t          | t
+(2 rows)
+
+
+==================== 3 · Vuelve la señal: instantánea S2 + catálogo recargado ====================
+evento               filas_snapshot  fecha_copia          productos_vendibles  lapidas
+-------------------  --------------  -------------------  -------------------  -------
+Instantánea cargada  18              2026-11-09T23:26:08  15                   2      
+-- C4: la Roquefort (id 7) ya no aparece en el catálogo...
+roquefort_en_catalogo
+---------------------
+0                    
+-- ...pero la fila sigue en producto_cache como lápida:
+id  nombre              disponible  eliminado  fecha_copia        
+--  ------------------  ----------  ---------  -------------------
+7   Empanada Roquefort  1           1          2026-11-09T23:26:08
+
+==================== 4 · Semáforo ====================
+solicitudes_evaluadas_en_esta_corrida
+-------------------------------------
+6                                    
+solicitud     borrador  luz       estado             motivo                                                                                           
+------------  --------  --------  -----------------  -------------------------------------------------------------------------------------------------
+00000000c2a1  c2c2c2c2  AMARILLO  CONFLICTO          producto 4 (Napolitana) cambió de precio: visto 5200.00, actual 5600.00                          
+00000000c300  c3c3c3c3  ROJO      RECHAZADO          producto 14 (Flan Casero) sin stock suficiente: pide 15, quedan 12                               
+00000000c400  c4c4c4c4  ROJO      RECHAZADO          producto 7 (Empanada Roquefort) fue dado de baja                                                 
+00000000c500  c5c5c5c5  VERDE     SIMULADO_APROBADO  coincide con la instantánea del 2026-11-09T23:26:08 (pendiente de confirmación real del servidor)
+00000000c600  c6c6c6c6  VERDE     SIMULADO_APROBADO  coincide con la instantánea del 2026-11-09T23:26:08 (pendiente de confirmación real del servidor)
+111111111111  11111111  VERDE     SIMULADO_APROBADO  coincide con la instantánea del 2026-11-09T23:26:08 (pendiente de confirmación real del servidor)
+
+==================== 5 · C2: el cliente acepta el precio nuevo -> solicitud nueva ====================
+producto_id  cantidad  precio_centavos_visto
+-----------  --------  ---------------------
+4            2         560000               
+11           1         220000               
+solicitudes_evaluadas_en_esta_corrida
+-------------------------------------
+1                                    
+solicitud     borrador  luz       estado             motivo                                                                                           
+------------  --------  --------  -----------------  -------------------------------------------------------------------------------------------------
+00000000c2a1  c2c2c2c2  AMARILLO  CONFLICTO          producto 4 (Napolitana) cambió de precio: visto 5200.00, actual 5600.00                          
+00000000c2b2  c2c2c2c2  VERDE     SIMULADO_APROBADO  coincide con la instantánea del 2026-11-09T23:26:08 (pendiente de confirmación real del servidor)
+00000000c300  c3c3c3c3  ROJO      RECHAZADO          producto 14 (Flan Casero) sin stock suficiente: pide 15, quedan 12                               
+00000000c400  c4c4c4c4  ROJO      RECHAZADO          producto 7 (Empanada Roquefort) fue dado de baja                                                 
+00000000c500  c5c5c5c5  VERDE     SIMULADO_APROBADO  coincide con la instantánea del 2026-11-09T23:26:08 (pendiente de confirmación real del servidor)
+00000000c600  c6c6c6c6  VERDE     SIMULADO_APROBADO  coincide con la instantánea del 2026-11-09T23:26:08 (pendiente de confirmación real del servidor)
+111111111111  11111111  VERDE     SIMULADO_APROBADO  coincide con la instantánea del 2026-11-09T23:26:08 (pendiente de confirmación real del servidor)
+
+==================== 6 · C6: reenvío de la misma solicitud (mismo UUID) ====================
+momento  solicitudes_c6  estado             evaluada_en        
+-------  --------------  -----------------  -------------------
+antes    1               SIMULADO_APROBADO  2026-11-09T23:26:08
+Runtime error near line 13: UNIQUE constraint failed: cola_sync.solicitud_uuid (19)
+momento  solicitudes_c6  estado             evaluada_en        
+-------  --------------  -----------------  -------------------
+después  1               SIMULADO_APROBADO  2026-11-09T23:26:08
+-- Repetir la simulación no reevalúa nada:
+solicitudes_evaluadas_en_esta_corrida
+-------------------------------------
+0                                    
+solicitud     borrador  luz       estado             motivo                                                                                           
+------------  --------  --------  -----------------  -------------------------------------------------------------------------------------------------
+00000000c2a1  c2c2c2c2  AMARILLO  CONFLICTO          producto 4 (Napolitana) cambió de precio: visto 5200.00, actual 5600.00                          
+00000000c2b2  c2c2c2c2  VERDE     SIMULADO_APROBADO  coincide con la instantánea del 2026-11-09T23:26:08 (pendiente de confirmación real del servidor)
+00000000c300  c3c3c3c3  ROJO      RECHAZADO          producto 14 (Flan Casero) sin stock suficiente: pide 15, quedan 12                               
+00000000c400  c4c4c4c4  ROJO      RECHAZADO          producto 7 (Empanada Roquefort) fue dado de baja                                                 
+00000000c500  c5c5c5c5  VERDE     SIMULADO_APROBADO  coincide con la instantánea del 2026-11-09T23:26:08 (pendiente de confirmación real del servidor)
+00000000c600  c6c6c6c6  VERDE     SIMULADO_APROBADO  coincide con la instantánea del 2026-11-09T23:26:08 (pendiente de confirmación real del servidor)
+111111111111  11111111  VERDE     SIMULADO_APROBADO  coincide con la instantánea del 2026-11-09T23:26:08 (pendiente de confirmación real del servidor)
+
+==================== 7 · PostgreSQL no cambió: pedidos y stock iguales a los del paso 0 ====================
+ pedidos | detalles | stock_total |           huella_stock           
+---------+----------+-------------+----------------------------------
+       7 |       16 |         709 | 4885fa3d84f2e2cf3b8fd536248918c7
+(1 row)
+

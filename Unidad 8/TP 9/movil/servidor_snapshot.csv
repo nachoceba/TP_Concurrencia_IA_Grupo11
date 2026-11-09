@@ -1,0 +1,19 @@
+id_producto,nombre,precio_centavos,stock,disponible,eliminado,fecha_snapshot
+1,Muzzarella,450000,50,1,0,2026-11-09T23:26:08
+2,Especial de Jamon y Morrones,580000,35,1,0,2026-11-09T23:26:08
+3,Fugazzeta Rellena,620000,20,1,0,2026-11-09T23:26:08
+4,Napolitana,560000,15,1,0,2026-11-09T23:26:08
+5,Empanada Carne Cuchillo,95000,120,1,0,2026-11-09T23:26:08
+6,Empanada Jamon y Queso,90000,100,1,0,2026-11-09T23:26:08
+7,Empanada Roquefort,95000,40,1,1,2026-11-09T23:26:08
+8,Burger Simple Cheese,650000,30,1,0,2026-11-09T23:26:08
+9,Burger Doble Bacon,820000,25,1,0,2026-11-09T23:26:08
+10,Burger Veggie NotMeat,710000,15,1,0,2026-11-09T23:26:08
+11,Coca-Cola Original 1.5L,220000,80,1,0,2026-11-09T23:26:08
+12,Cerveza Patagonia 730ml,350000,45,1,0,2026-11-09T23:26:08
+13,Agua Mineral 500ml,120000,100,1,0,2026-11-09T23:26:08
+14,Flan Casero,280000,12,1,0,2026-11-09T23:26:08
+15,Volcan de Chocolate,340000,0,0,0,2026-11-09T23:26:08
+16,Tarta de Frutilla,320000,10,1,0,2026-11-09T23:26:08
+17,Pizza de Anana (Hawaiana),480000,0,0,1,2026-11-09T23:26:08
+18,Hamburguesa Doble Test,700000,12,1,0,2026-11-09T23:26:08
