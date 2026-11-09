@@ -1,0 +1,211 @@
+Prueba de migración FNBC + reversión · 2026-11-09 23:41:08 · 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+
+=== E1 · IDA: control_lote_almacen -> responsable_deposito + control_lote (REQ-01..04)
+NOTICE:  database "tp_u4_fnbc" does not exist, skipping
+psql:sql/00_setup_legado.sql:22: NOTICE:  table "control_lote_almacen" does not exist, skipping
+-- antes
+        objeto        | tipo  
+----------------------+-------
+ control_lote_almacen | tabla
+(1 row)
+
+ lote_id | deposito_id | responsable_control_id 
+---------+-------------+------------------------
+     501 |          30 |                    801
+     502 |          30 |                    801
+     503 |          31 |                    802
+(3 rows)
+
+BEGIN
+psql:sql/01_migracion_fnbc.sql:38: NOTICE:  OK precondiciones: DF responsable -> deposito se cumple en los datos
+DO
+SELECT 3
+CREATE TABLE
+CREATE TABLE
+INSERT 0 2
+INSERT 0 3
+ALTER TABLE
+COMMENT
+CREATE VIEW
+psql:sql/01_migracion_fnbc.sql:93: NOTICE:  OK sin perdida: 3 filas, 0 faltantes, 0 sobrantes
+DO
+COMMIT
+ lote_id | deposito_id | responsable_control_id 
+---------+-------------+------------------------
+     501 |          30 |                    801
+     502 |          30 |                    801
+     503 |          31 |                    802
+(3 rows)
+
+-- después
+           objeto            | tipo  
+-----------------------------+-------
+ control_lote                | tabla
+ control_lote_almacen        | vista
+ control_lote_almacen_legado | tabla
+ responsable_deposito        | tabla
+(4 rows)
+
+ lote_id | deposito_id | responsable_control_id 
+---------+-------------+------------------------
+     501 |          30 |                    801
+     502 |          30 |                    801
+     503 |          31 |                    802
+(3 rows)
+
+ responsable_control_id | deposito_id 
+------------------------+-------------
+                    801 |          30
+                    802 |          31
+(2 rows)
+
+ lote_id | responsable_control_id 
+---------+------------------------
+     501 |                    801
+     502 |                    801
+     503 |                    802
+(3 rows)
+
+
+=== E2 · Las anomalías desaparecen: alta de responsable sin lote (803 -> depósito 32)
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+
+=== E3 · REVERSIÓN BLOQUEADA: el 803 no tiene lote y el esquema heredado no lo puede guardar (REQ-05)
+BEGIN
+DO
+SELECT 3
+psql:sql/02_reversion_fnbc.sql:44: ERROR:  REVERSION BLOQUEADA: 1 responsable(s) sin lote no entran en el esquema heredado y se perderian. Asignales un lote o SET fnbc.forzar_reversion = on
+CONTEXT:  PL/pgSQL function inline_code_block line 7 at RAISE
+-- el esquema FNBC sigue intacto:
+           objeto            | tipo  
+-----------------------------+-------
+ control_lote                | tabla
+ control_lote_almacen        | vista
+ control_lote_almacen_legado | tabla
+ responsable_deposito        | tabla
+(4 rows)
+
+ lote_id | deposito_id | responsable_control_id 
+---------+-------------+------------------------
+     501 |          30 |                    801
+     502 |          30 |                    801
+     503 |          31 |                    802
+(3 rows)
+
+
+=== E4 · REVERSIÓN con cambios posteriores: se le asigna lote al 803 y se agrega 504/31/802
+INSERT 0 2
+INSERT 0 2
+-- vista antes de revertir:
+ lote_id | deposito_id | responsable_control_id 
+---------+-------------+------------------------
+     501 |          30 |                    801
+     502 |          30 |                    801
+     503 |          31 |                    802
+     504 |          31 |                    802
+     505 |          32 |                    803
+(5 rows)
+
+BEGIN
+DO
+SELECT 5
+DO
+DELETE 0
+UPDATE 0
+INSERT 0 2
+DROP VIEW
+DROP TABLE
+DROP TABLE
+ALTER TABLE
+COMMENT
+psql:sql/02_reversion_fnbc.sql:81: NOTICE:  OK reversion: esquema heredado restaurado sin perdida
+DO
+COMMIT
+ lote_id | deposito_id | responsable_control_id 
+---------+-------------+------------------------
+     501 |          30 |                    801
+     502 |          30 |                    801
+     503 |          31 |                    802
+     504 |          31 |                    802
+     505 |          32 |                    803
+(5 rows)
+
+-- después de revertir:
+        objeto        | tipo  
+----------------------+-------
+ control_lote_almacen | tabla
+(1 row)
+
+ lote_id | deposito_id | responsable_control_id 
+---------+-------------+------------------------
+     501 |          30 |                    801
+     502 |          30 |                    801
+     503 |          31 |                    802
+     504 |          31 |                    802
+     505 |          32 |                    803
+(5 rows)
+
+
+=== E5 · IDA RECHAZADA: los datos violan la DF (802 en los depósitos 30 y 31) -> no cambia nada
+NOTICE:  database "tp_u4_fnbc_viola" does not exist, skipping
+psql:sql/00_setup_legado.sql:22: NOTICE:  table "control_lote_almacen" does not exist, skipping
+BEGIN
+psql:sql/01_migracion_fnbc.sql:38: ERROR:  DF responsable_control_id -> deposito_id VIOLADA por 1 responsable(s): no se migra
+CONTEXT:  PL/pgSQL function inline_code_block line 17 at RAISE
+-- sigue la tabla heredada, sin tablas nuevas:
+        objeto        | tipo  
+----------------------+-------
+ control_lote_almacen | tabla
+(1 row)
+
+ lote_id | deposito_id | responsable_control_id 
+---------+-------------+------------------------
+     501 |          30 |                    801
+     502 |          30 |                    801
+     503 |          30 |                    802
+     503 |          31 |                    802
+(4 rows)
+
+
+=== E6 · REVERSIÓN FORZADA (decisión consciente de perder responsables sin lote)
+NOTICE:  database "tp_u4_fnbc_forzada" does not exist, skipping
+psql:sql/00_setup_legado.sql:22: NOTICE:  table "control_lote_almacen" does not exist, skipping
+BEGIN
+DO
+SELECT 3
+psql:sql/02_reversion_fnbc.sql:44: WARNING:  Reversion forzada: se pierden 1 responsable(s) sin lote
+DO
+DELETE 0
+UPDATE 0
+INSERT 0 0
+DROP VIEW
+DROP TABLE
+DROP TABLE
+ALTER TABLE
+COMMENT
+psql:sql/02_reversion_fnbc.sql:81: NOTICE:  OK reversion: esquema heredado restaurado sin perdida
+DO
+COMMIT
+ lote_id | deposito_id | responsable_control_id 
+---------+-------------+------------------------
+     501 |          30 |                    801
+     502 |          30 |                    801
+     503 |          31 |                    802
+(3 rows)
+
+        objeto        | tipo  
+----------------------+-------
+ control_lote_almacen | tabla
+(1 row)
+
+ lote_id | deposito_id | responsable_control_id 
+---------+-------------+------------------------
+     501 |          30 |                    801
+     502 |          30 |                    801
+     503 |          31 |                    802
+(3 rows)
+
+
+Bases descartables eliminadas.
